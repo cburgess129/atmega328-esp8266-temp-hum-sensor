@@ -1,0 +1,402 @@
+/* This sketch uses a bare Atmega328 microcontroller, along with an ESP8266 ESP-01 wifi module
+and a DHT22 temperature sensor to create a small, efficient, remote temperature and humidity
+sensor.
+You will need to make sure your ESP8266 is running the latest version of AT firmware.
+It should be configured for a UART speed of 19200, 1 stop bit, no parity, no flow control.
+It should be configured for CWMODE 1 mode.  It should be joined to your wifi and have
+an IP address. There is a check to make sure the wifi is joined after the ESP is reset.  If
+wifi is not joined, the ESP will attempt to rejoin the wifi SSID defined in the sketch
+
+Pin reference:  http://www.akafugu.jp/images/microcontroller-reference-sheet.png
+
+Pin connections:
+Module/Pin     ATMEGA Arduino Pin (Dxx)   Atmega Physical Pin (xx)
+----------   -  ---------------           -----------------------
+error LED+      13                         19 - connect through 220ohm resistor
+green LED+      12                         18 - connect through 220ohm resistor
+DHT22 data      9                          15 - connect 1Kohm resistor between data pin and VCC pin
+DHT22 VCC       4                          6
+ESP RESET       2                          4  - connect through 1Kohm resistor                        
+ESP CH_PD       3                          5  - connect through 1Kohm resistor                       
+ESP TX          10 (software serial RX)    16    
+ESP RX          11 (software serial TX)    17   
+DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial adapter here to view debug data                                  
+DEBUG TX        0  (Serial RX)             2 
+
+RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one side of
+                                                a pushbutton to the reset pin, and connect the other side of the pushbutton to GND.  When you push
+                                                the button, the Atmega will reset.
+
+FLASHING ESP FIRMWARE
+You will need to add a 3-pin header to your breadboard to connect your usb-serial cable to the
+tx/rx of the ESP to flash the latest firmware
+
+  ESP Pin    USB-Serial Adapter
+  -------    ------------------
+  TX         RX
+  RX         TX
+  GND        GND
+  GIPO0      GND - connect through pushbutton switch
+
+You will need to bring ESP pin GPIO0 to ground during startup in order to put the ESP into flash mode.
+I use a hard-wired switch to do this
+
+BURNING THE BOOTLOADER ON THE ATMEGA328
+You will need to add a 6-pin ICSP header to your breadboard in order to flash the bootloader to your 
+Atmega chip.  You can find the ICSP pin layout on the net.  You can use either an AVR programmer or 
+ArduinISP to flash the bootloader.  There are examples on the net showing you how to use an arduino 
+as an  AVR-ISP programer if you don't have an AVR programmer
+
+DEFINING THE ATMEGA328@8MHZ BOARD IN THE IDE
+You need to add the following lines to your 'boards.txt' file in order to be able to flash the new boot
+loader to your atmega chip and set the fuses correctly.  Just add them as a new entry, save the file, and 
+restart the IDE. You will see a new board entry of '8MHZ ARDUINO UNO'.  Select this board, select the COM 
+port for your AVR programmer and hit 'burn bootloader.  This entry will also allow you to upload sketches
+via serial using 'UPLOAD' in the IDE - just select the COM port you usb-serial adapter is on
+
+###########################################################
+8mhzuno.name=8MHZ Arduino Uno
+8mhzuno.upload.tool=avrdude
+8mhzuno.upload.protocol=arduino
+8mhzuno.bootloader.tool=avrdude
+8mhzuno.bootloader.low_fuses=0xE2
+8mhzuno.bootloader.high_fuses=0xD2
+8mhzuno.bootloader.extended_fuses=0x05
+8mhzuno.bootloader.unlock_bits=0x3F
+8mhzuno.bootloader.lock_bits=0x0F
+8mhzuno.upload.maximum_size=30720
+8mhzuno.upload.maximum_data_size=2048
+8mhzuno.upload.speed=57600
+8mhzuno.bootloader.file=atmega/ATmegaBOOT_168_atmega328_pro_8MHz.hex
+8mhzuno.build.mcu=atmega328p
+8mhzuno.build.f_cpu=8000000L
+8mhzuno.build.core=arduino
+8mhzuno.build.variant=standard
+############################################################
+ 
+If you are using an AVR programmer, you might need to add it to the 'programmers' file in the arduino
+configuration.
+
+UPLOADING SKETCHES
+Once you have updated the firmware on your ESP and flashed the bootloader on the atmega chip, you can connect
+your usb-serial converter to the serial port on the Atmega:
+
+USB-SERIAL PIN    ATMEGA Arduino PIN:
+--------------    ----------
+TX                0 (RX)
+RX                1 (TX)
+DTR               RESET - connect this through a .1uf ceramic capacitor
+GND               GND
+
+This will allow you to upload sketches by selecting the COM port of your usb-serial converter like you would
+upload to a regular arduino.  If your usb-serial converter doesn't have a DTR pin, you will have to push the reset
+button on your atmega before you hit the upload button in the IDE but the timing is hard to get right.  Best to 
+spend $2 and get a usb-serial converter with a DTR pin on ebay
+
+If you open this COM port in the IDE (make sure to set the BAUD to 19200 in the IDE) or connect to it with a 
+terminal emulator like terraterm or putty, you can see DEBUG info from the atmega telling you if each step 
+succeded or failed
+
+POWER:  
+This circuit is designed to use 3.3v.  You can power it directly from 3 AA batteries, a 3.7V LIPO
+battery, or any combination of batteries/external power that is 2.7 to 4.5 volts.  The ESP module requires
+a lot of current and can't be powered by a laptop USB port and can't be powered by the 3.3v LDO on a standard
+aarduino
+*/
+
+#include <SoftwareSerial.h>
+#include <TextFinder.h>
+#include <dht.h>
+
+//uncomment the following line to enable status LEDS
+//#define EnableLEDs
+
+//define wifi SSID and password
+#define wifiSSID "BURGESSWORLD1"
+#define wifiPASSWORD "thisistherouterpassword"
+
+//define thingspeek channel write key
+#define channelKey "921QR0W64PY0N9BY"
+
+//define SoftwareSerial
+SoftwareSerial Serial1(10,11); //RX, TX
+
+//define textfinder service
+TextFinder finder(Serial1);
+
+//define DHT pins
+#define DHT22_PIN 9
+#define DHT22_VCC 4
+
+/* Define ESP Reset and ch_pd connections - these are connected to the atmega through
+1K resistors so we can use them to reset the ESP and wake it up */
+#define ESPRESETPIN 2
+#define ESPCHPDPIN 3
+
+//Define status indicator pins
+#define OKLEDPIN 12
+#define REDLEDPIN 13
+
+bool connectStat;
+int failCount;
+
+//initialize DHT
+dht DHT;
+
+void setup(){
+  //start serial ports  
+  Serial1.begin(19200);
+  Serial.begin(19200);
+  Serial.println(F("Started"));
+
+  //set pin mode for status indicator pins
+  pinMode(OKLEDPIN, OUTPUT);
+  pinMode(REDLEDPIN, OUTPUT);
+   
+  //set pin mode for ESP enable/rest pins
+  //pinMode(ESPRESETPIN, OUTPUT);
+  pinMode(ESPCHPDPIN, OUTPUT);
+  
+  //set pin mode for DHT22 VCC pin
+  pinMode(DHT22_VCC, OUTPUT);
+  
+  //wait 2 seconds and flash LEDs to indicate startup
+  delay(2000);
+  flashOkLED();
+  flashRedLED();
+   
+  //reboot esp to initialize
+  Serial.println(F("Initialize ESP"));
+  initEsp();
+  flashOkLED();
+}
+
+void loop(){
+  //Enable DHT22 VCC pin and read sensor
+  digitalWrite(DHT22_VCC, HIGH);
+  Serial.println(F("read sensor"));
+  DHT.read22(DHT22_PIN);
+  delay(2200);
+  DHT.read22(DHT22_PIN);
+  digitalWrite(DHT22_VCC, LOW);
+  
+  //convert readings to integers
+  int h = (DHT.humidity);
+  int f = ((DHT.temperature *1.8)+32); //convert C temperature reading to F
+  Serial.println(h);
+  Serial.println(f);
+
+  //open tcp conncection to thingspeek.com
+  Serial1.println(F("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80")); //connect to thingspeak
+  if (finder.find("OK")){
+    Serial.println(F("TCP connected"));
+    flashOkLED();
+    
+    //build data package
+    String outmessage = "GET /update?key=";
+    outmessage+=channelKey;
+    outmessage+="&field1=";
+    outmessage+=h;
+    /* you can create addditional field definitions to upload more data fields by duplicating the following 
+    two lines of code and incrementing the 'field#' number in the first line and specifying another variable 
+    to upload in the second line */
+    outmessage+="&field2=";
+    outmessage+=f;
+    //add the rest of the data packet
+    outmessage+=" HTTP/1.0\r\n\r\n";
+  
+    //tell ESP we want to send a data package
+    Serial1.print(F("AT+CIPSEND="));  //tell ESP we want to send some data
+    Serial1.println(outmessage.length());
+   
+    //Send data package
+    if (finder.find("> ")){
+      Serial.println("ready to send");
+      flashOkLED();
+      //send GET request
+      Serial1.print(outmessage);
+      Serial.println(outmessage);
+      
+      //look for OK message from thingspeek
+      if (finder.find("200 OK")){
+        Serial.println(F("send success!"));
+        flashOkLED();
+        flushSerial();
+        connectStat = 1;
+       }
+      else {
+        Serial.println(F("send failed"));
+        Serial1.println(F("AT+CIPCLOSE"));
+        flashRedLED();
+        connectStat = 0;
+      }
+    }
+    else {
+      Serial.println("connection failed");
+      Serial1.println(F("AT+CIPCLOSE"));
+      flashRedLED();
+      connectStat = 0;
+    }
+  }
+  else {
+    Serial.println("socket error");
+    flashRedLED();
+    connectStat=0;
+  }
+  if (connectStat){
+    failCount = 0;
+    //start sleep cycle
+    Serial.println(F("put esp to sleep"));
+   
+    //put esp to sleep
+    Serial1.println(F("AT+GSLP=100"));
+       
+    //turn off DHT22 sensnor
+    digitalWrite(DHT22_VCC, LOW);
+  }
+  else {
+    if (failCount == 3){
+      flushSerial();
+      initEsp();
+      failCount = 0;
+    }
+    else {
+      failCount++;
+    }
+  }
+  flushSerial();
+}
+
+//function to flash red led
+void flashRedLED(){
+  #ifdef EnableLEDs
+    digitalWrite(REDLEDPIN, HIGH);
+    delay(150);
+    digitalWrite(REDLEDPIN, LOW);
+    delay(50);
+  #endif
+}
+
+//function to flash green led
+void flashOkLED(){
+  #ifdef EnableLEDs
+    digitalWrite(OKLEDPIN, HIGH);
+    delay(150);
+    digitalWrite(OKLEDPIN, LOW);
+    delay(50);
+  #endif
+  }
+
+//function to flush software serial read buffer - REQUIRED
+void flushSerial(){
+    while (Serial1.available() > 0){
+      Serial1.read();
+    }
+}
+
+//function to rest ESP
+void initEsp(){
+  bool resetStatus = 0;
+  while (!resetStatus){
+    
+    //reset ESP by taking ESP CH_PD pin low, then high
+    Serial.println(F("reset esp"));
+    digitalWrite(ESPCHPDPIN, LOW);
+    delay(1000);
+    digitalWrite(ESPCHPDPIN, HIGH);
+    
+    //wait for esp ready
+    long failedInitMillis = millis() + 10000;
+    bool espReady = true;
+    while(!finder.find("ready")){ 
+      if ((long) (millis() - failedInitMillis) >= 0){
+        Serial.println(F("failed to init")); 
+        espReady = false;
+        break;
+      }
+    }
+    
+    //check wifi connection
+    if (espReady){
+      Serial.println(F("ready"));
+      
+      //wiat for wifi connection
+      long failedWifiMillis = millis() + 10000;
+      bool wifiJoined = true;
+      while(!finder.find("WIFI GOT IP")){ 
+        if ((long) (millis() - failedWifiMillis) >= 0){
+          wifiJoined = false;
+          flushSerial();
+          break;
+        }
+      }
+      
+      if (wifiJoined){
+        Serial.println(F("wifi connected"));
+        flashOkLED();
+        flashOkLED();
+        flashOkLED();
+        resetStatus = 1;
+        flushSerial();
+      }
+      
+      //join wifi
+      else {
+        Serial.println(F("wifi failed")); 
+                
+        //check to see if esp is responding
+        Serial.println(F("sending AT command"));
+        Serial1.println(F("AT"));
+        if (finder.find("OK")){
+          Serial.println(F("ok"));
+          Serial1.println(F("AT+CWJAP?"));
+          if (finder.find("No AP")){
+            Serial.println(F("no ap"));
+            //join wifi
+            while(!finder.find("OK")){
+              //do nothing
+            }
+            String joinString = "AT+CWJAP=\"";
+            joinString+=wifiSSID;
+            joinString+="\",\"";
+            joinString+=wifiPASSWORD;
+            joinString+="\"";
+            Serial.println(F("joining wifi"));
+            Serial1.println(joinString);   
+            Serial.println(joinString);   
+            Serial.println(F("waiting for join"));
+        
+            //wait for join
+            long failedJoinMillis = millis() + 10000;
+            bool joinStatus = true;
+            while(!finder.find("OK")){ 
+              if ((long) (millis() - failedJoinMillis) >= 0){
+                joinStatus = false;
+                break;
+              }
+            }
+            if(joinStatus){
+              Serial.println("wifi joined");
+              flashOkLED();
+              flashOkLED();
+              resetStatus = 1;
+            }
+            else {
+              Serial.println(F("failed to join wifi"));
+              flashRedLED();
+              flashRedLED();
+              flashRedLED();
+            }
+          }
+          else {
+            Serial.println(F("AT failed"));
+          }
+        }
+      }
+    }
+    else {
+      Serial.println(F("esp not ready"));
+      flushSerial();
+    }
+  }
+}
