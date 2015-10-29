@@ -13,6 +13,7 @@ wifi is not joined, the ESP will attempt to rejoin the wifi SSID defined in the 
 Pin reference:  http://www.akafugu.jp/images/microcontroller-reference-sheet.png
 
 Pin connections:
+
 Module/Pin     ATMEGA Arduino Pin (Dxx)   Atmega Physical Pin (xx)
 ----------   -  ---------------           -----------------------
 error LED+      13                         19 - connect through 220ohm resistor
@@ -43,10 +44,15 @@ You will need to add a 3-pin header to your breadboard to connect your usb-seria
 tx/rx of the ESP to flash the latest firmware
 
   ESP Pin    USB-Serial Adapter
+  
   -------    ------------------
+  
   TX         RX
+  
   RX         TX
+  
   GND        GND
+  
   GIPO0      GND - connect through pushbutton switch
 
 You will need to bring ESP pin GPIO0 to ground during startup in order to put the ESP into flash mode.
