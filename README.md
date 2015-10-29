@@ -16,14 +16,24 @@ Pin connections:
 Module/Pin     ATMEGA Arduino Pin (Dxx)   Atmega Physical Pin (xx)
 ----------   -  ---------------           -----------------------
 error LED+      13                         19 - connect through 220ohm resistor
+
 green LED+      12                         18 - connect through 220ohm resistor
+
 DHT22 data      9                          15 - connect 1Kohm resistor between data pin and VCC pin
+
 DHT22 VCC       4                          6
-ESP RESET       2                          4  - connect through 1Kohm resistor                        
-ESP CH_PD       3                          5  - connect through 1Kohm resistor                       
+
+ESP RESET       2                          4  - connect through 1Kohm resistor     
+
+ESP CH_PD       3                          5  - connect through 1Kohm resistor     
+
 ESP TX          10 (software serial RX)    16    
+\
 ESP RX          11 (software serial TX)    17   
-DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial adapter here to view debug data                                  
+
+DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial adapter here to view debug data   
+
+
 DEBUG TX        0  (Serial RX)             2 
 
 RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one                                                  side of a pushbutton to the reset pin, and connect the other side of the                                                    pushbutton to GND.  When you push the button, the Atmega will reset.
