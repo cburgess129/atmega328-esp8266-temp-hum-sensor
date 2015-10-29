@@ -13,48 +13,32 @@ wifi is not joined, the ESP will attempt to rejoin the wifi SSID defined in the 
 Pin reference:  http://www.akafugu.jp/images/microcontroller-reference-sheet.png
 
 Pin connections:
-
 Module/Pin     ATMEGA Arduino Pin (Dxx)   Atmega Physical Pin (xx)
 ----------   -  ---------------           -----------------------
 error LED+      13                         19 - connect through 220ohm resistor
-
 green LED+      12                         18 - connect through 220ohm resistor
-
 DHT22 data      9                          15 - connect 1Kohm resistor between data pin and VCC pin
-
 DHT22 VCC       4                          6
-
-ESP RESET       2                          4  - connect through 1Kohm resistor     
-
-ESP CH_PD       3                          5  - connect through 1Kohm resistor     
-
+ESP RESET       2                          4  - connect through 1Kohm resistor                        
+ESP CH_PD       3                          5  - connect through 1Kohm resistor                       
 ESP TX          10 (software serial RX)    16    
-\
 ESP RX          11 (software serial TX)    17   
-
-DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial adapter here to view debug data   
-
-
+DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial adapter here to view debug data                                  
 DEBUG TX        0  (Serial RX)             2 
 
-RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one
-                                                side of a pushbutton to the reset pin, and connect the other side of the
-                                                pushbutton to GND.  When you push the button, the Atmega will reset.
+RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one side of
+                                                a pushbutton to the reset pin, and connect the other side of the pushbutton to GND.  When you push
+                                                the button, the Atmega will reset.
 
 FLASHING ESP FIRMWARE
 You will need to add a 3-pin header to your breadboard to connect your usb-serial cable to the
 tx/rx of the ESP to flash the latest firmware
 
   ESP Pin    USB-Serial Adapter
-  
   -------    ------------------
-  
   TX         RX
-  
   RX         TX
-  
   GND        GND
-  
   GIPO0      GND - connect through pushbutton switch
 
 You will need to bring ESP pin GPIO0 to ground during startup in order to put the ESP into flash mode.
@@ -101,15 +85,10 @@ Once you have updated the firmware on your ESP and flashed the bootloader on the
 your usb-serial converter to the serial port on the Atmega:
 
 USB-SERIAL PIN    ATMEGA Arduino PIN:
-
 --------------    ----------
-
 TX                0 (RX)
-
 RX                1 (TX)
-
 DTR               RESET - connect this through a .1uf ceramic capacitor
-
 GND               GND
 
 This will allow you to upload sketches by selecting the COM port of your usb-serial converter like you would
