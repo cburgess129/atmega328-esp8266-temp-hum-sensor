@@ -99,10 +99,15 @@ Once you have updated the firmware on your ESP and flashed the bootloader on the
 your usb-serial converter to the serial port on the Atmega:
 
 USB-SERIAL PIN    ATMEGA Arduino PIN:
+
 --------------    ----------
+
 TX                0 (RX)
+
 RX                1 (TX)
+
 DTR               RESET - connect this through a .1uf ceramic capacitor
+
 GND               GND
 
 This will allow you to upload sketches by selecting the COM port of your usb-serial converter like you would
