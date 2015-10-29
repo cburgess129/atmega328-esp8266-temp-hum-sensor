@@ -37,7 +37,9 @@ DEBUG RX        1  (Serial TX)             3  - connect RX pin of usb-serial ada
 
 DEBUG TX        0  (Serial RX)             2 
 
-RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one                                                  side of a pushbutton to the reset pin, and connect the other side of the                                                    pushbutton to GND.  When you push the button, the Atmega will reset.
+RESET button  RESET                        1  - Connect a 10K resistor between the Atmega reset pin and 3.3v.  Connect one
+                                                side of a pushbutton to the reset pin, and connect the other side of the
+                                                pushbutton to GND.  When you push the button, the Atmega will reset.
 
 FLASHING ESP FIRMWARE
 You will need to add a 3-pin header to your breadboard to connect your usb-serial cable to the
